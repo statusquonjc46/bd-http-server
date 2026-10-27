@@ -25,13 +25,13 @@ func main() {
 	mux.Handle("/app/", http.StripPrefix("/app/", apiCfg.middlewareMetricsIncrement(http.FileServer(rootDir))))
 
 	//handles requests to check site up/down, returns page with "OK"
-	mux.HandleFunc("GET /healthz", healthHandler)
+	mux.HandleFunc("GET /api/healthz", healthHandler)
 
 	//handles requests to see the hits to the app, returns "Hits: x"
-	mux.HandleFunc("GET /metrics", apiCfg.metricHandler)
+	mux.HandleFunc("GET /api/metrics", apiCfg.metricHandler)
 
 	//handles requests to reset the site metrics
-	mux.HandleFunc("POST /reset", apiCfg.resetHandler)
+	mux.HandleFunc("POST /api/reset", apiCfg.resetHandler)
 
 	//listen and serve sets up the interface to take requests and return responses based on the handlers above
 	if err := httpServer.ListenAndServe(); err != nil {
