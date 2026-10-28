@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -13,6 +14,17 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	w.Write([]byte("OK"))
+}
+
+func censorChirp(body string) string {
+	bodySlice := strings.Split(body, " ")
+	bad_words := map[string]bool{"kerfuffle": true, "sharbert": true, "fornax": true}
+	for i, word := range bodySlice {
+		if bad_words[strings.ToLower(word)] {
+			bodySlice[i] = "****"
+		}
+	}
+	return strings.Join(bodySlice, " ")
 }
 
 func respondWithErrors(w http.ResponseWriter, statusCode int, msg string) {
@@ -42,9 +54,15 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 
-	type valid struct {
-		Valid bool `json:"valid"`
+	type cleaned struct {
+		Cleaned string `json:"cleaned_body"`
 	}
+
+	/*
+		type valid struct {
+			Valid bool `json:"valid"`
+		}
+	*/
 
 	decoder := json.NewDecoder(r.Body)
 	chirpToCheck := chirp{}
@@ -61,10 +79,17 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	val := valid{
-		Valid: true,
+	cleaned_body := censorChirp(chirpToCheck.Body)
+
+	/*
+		val := valid{
+			Valid: true,
+		}
+	*/
+	clean := cleaned{
+		Cleaned: cleaned_body,
 	}
-	respondWithPayload(w, 200, val)
+	respondWithPayload(w, 200, clean)
 	return
 
 }
