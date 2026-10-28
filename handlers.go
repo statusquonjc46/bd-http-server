@@ -25,8 +25,8 @@ func (cfg *apiConfig) middlewareMetricsIncrement(next http.Handler) http.Handler
 
 func (cfg *apiConfig) metricHandler(w http.ResponseWriter, r *http.Request) {
 	hitsCount := cfg.fileserverHits.Load()
-	hitsString := fmt.Sprintf("Hits: %v", hitsCount)
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	hitsString := fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", hitsCount)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(200)
 	w.Write([]byte(hitsString))
 }

@@ -28,10 +28,10 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", healthHandler)
 
 	//handles requests to see the hits to the app, returns "Hits: x"
-	mux.HandleFunc("GET /api/metrics", apiCfg.metricHandler)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.metricHandler)
 
 	//handles requests to reset the site metrics
-	mux.HandleFunc("POST /api/reset", apiCfg.resetHandler)
+	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 
 	//listen and serve sets up the interface to take requests and return responses based on the handlers above
 	if err := httpServer.ListenAndServe(); err != nil {
