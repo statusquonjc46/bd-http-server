@@ -1,17 +1,75 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync/atomic"
 )
 
+// /api/ endpoint handlers
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	w.Write([]byte("OK"))
 }
 
+func respondWithErrors(w http.ResponseWriter, statusCode int, msg string) {
+	type errorResponse struct {
+		Error string `json:"error"`
+	}
+	err := errorResponse{
+		Error: msg,
+	}
+	respondWithPayload(w, statusCode, err)
+}
+
+func respondWithPayload(w http.ResponseWriter, statusCode int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshalling json %s\n", err)
+		w.WriteHeader(500)
+		return
+	}
+	w.WriteHeader(statusCode)
+	w.Write(dat)
+}
+
+func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+	type chirp struct {
+		Body string `json:"body"`
+	}
+
+	type valid struct {
+		Valid bool `json:"valid"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	chirpToCheck := chirp{}
+
+	err := decoder.Decode(&chirpToCheck)
+	if err != nil {
+		respondWithErrors(w, 400, "Bad Request")
+		return
+	}
+
+	chirpLen := len(chirpToCheck.Body)
+	if chirpLen > 140 {
+		respondWithErrors(w, 400, "Chirp is too long")
+		return
+	}
+
+	val := valid{
+		Valid: true,
+	}
+	respondWithPayload(w, 200, val)
+	return
+
+}
+
+// API Config Related Handlers at /admin/ endpoints
 type apiConfig struct {
 	fileserverHits atomic.Int32
 }

@@ -33,6 +33,9 @@ func main() {
 	//handles requests to reset the site metrics
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 
+	//handles requests to validate a chirp
+	mux.HandleFunc("POST /api/validate_chirp", validateChirpHandler)
+
 	//listen and serve sets up the interface to take requests and return responses based on the handlers above
 	if err := httpServer.ListenAndServe(); err != nil {
 		fmt.Println(fmt.Errorf("Error: failed to start server [%v]", err))
