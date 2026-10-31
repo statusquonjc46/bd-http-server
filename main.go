@@ -53,6 +53,9 @@ func main() {
 	//handles requests to get all chirps sorted by created-time
 	mux.HandleFunc("GET /api/chirps", apiCfg.getAllChirpsHandler)
 
+	//handles getting a chirp by chirp id
+	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.getAChirp)
+
 	//handles requests to reset the site metrics
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 

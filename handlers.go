@@ -132,6 +132,37 @@ func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request
 	respondWithPayload(w, 200, chirpSlice)
 }
 
+func (cfg *apiConfig) getAChirp(w http.ResponseWriter, r *http.Request) {
+	type chirpId struct {
+		ID uuid.UUID
+	}
+	pathVal := r.PathValue("chirpId")
+	parsedVal, err := uuid.Parse(pathVal)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request")
+		return
+	}
+
+	returnedChirp, err := cfg.database.GetAChirp(r.Context(), parsedVal)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 404, "Failed to query database for chirp")
+		return
+	}
+
+	payloadChirp := Chirp{
+		ID:        returnedChirp.ID,
+		CreatedAt: returnedChirp.CreatedAt.Time,
+		UpdatedAt: returnedChirp.UpdatedAt.Time,
+		Body:      returnedChirp.Body,
+		UserID:    returnedChirp.UserID,
+	}
+
+	respondWithPayload(w, 200, payloadChirp)
+
+}
+
 // api function to handle adding a user to users table
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	type reqEmail struct {
