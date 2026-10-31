@@ -16,6 +16,15 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+// user table with password hash entry
+type UserWithHash struct {
+	ID             uuid.UUID `json:"id"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	Email          string    `json:"email"`
+	HashedPassword string    `json:"password"`
+}
+
 // chirp table entry
 type Chirp struct {
 	ID        uuid.UUID     `json:"id"`

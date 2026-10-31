@@ -10,6 +10,7 @@ import (
 	//"uuid"
 
 	"github.com/google/uuid"
+	"github.com/statusquonjc46/bd-http-server/internal/auth"
 	"github.com/statusquonjc46/bd-http-server/internal/database"
 )
 
@@ -166,20 +167,33 @@ func (cfg *apiConfig) getAChirp(w http.ResponseWriter, r *http.Request) {
 // api function to handle adding a user to users table
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	type reqEmail struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	emailBody := reqEmail{}
+	reqBody := reqEmail{}
 
-	err := decoder.Decode(&emailBody)
+	err := decoder.Decode(&reqBody)
 	if err != nil {
 		log.Println(err)
 		respondWithErrors(w, 400, "Bad Request")
 		return
 	}
 
-	user, err := cfg.database.CreateUser(r.Context(), emailBody.Email)
+	reqBody.Password, err = auth.HashPassword(reqBody.Password)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to hash password")
+		return
+	}
+
+	userArgs := database.CreateUserParams{
+		Email:          reqBody.Email,
+		HashedPassword: reqBody.Password,
+	}
+
+	user, err := cfg.database.CreateUser(r.Context(), userArgs)
 	if err != nil {
 		log.Println(err)
 		respondWithErrors(w, 500, "Failed to add user")
@@ -192,6 +206,50 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}
 	respondWithPayload(w, 201, jsonUser)
+}
+
+// api function to handle a login attempt via email and password to the users table
+func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+	type creds struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	credBody := creds{}
+
+	err := decoder.Decode(&credBody)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request")
+		return
+	}
+
+	user, err := cfg.database.ValidateEmail(r.Context(), credBody.Email)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "incorrect email or password")
+	}
+
+	match, err := auth.CheckPasswordHash(credBody.Password, user.HashedPassword)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "failed to check validate password")
+		return
+	}
+
+	if match != true {
+		respondWithErrors(w, 401, "incorrect email or password")
+		return
+	}
+
+	payloadUser := User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt.Time,
+		UpdatedAt: user.UpdatedAt.Time,
+		Email:     user.Email,
+	}
+	respondWithPayload(w, 200, payloadUser)
 }
 
 // api middleware to count page visits
