@@ -6,20 +6,21 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync/atomic"
-	"time"
-	"uuid"
 
+	//"uuid"
+
+	"github.com/google/uuid"
 	"github.com/statusquonjc46/bd-http-server/internal/database"
 )
 
-// /api/ endpoint handlers
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	w.Write([]byte("OK"))
 }
 
+// HELPER FUNCTIONS
+// helper function for censoring chirps
 func censorChirp(body string) string {
 	bodySlice := strings.Split(body, " ")
 	bad_words := map[string]bool{"kerfuffle": true, "sharbert": true, "fornax": true}
@@ -31,6 +32,7 @@ func censorChirp(body string) string {
 	return strings.Join(bodySlice, " ")
 }
 
+// helper function for creating error http responses
 func respondWithErrors(w http.ResponseWriter, statusCode int, msg string) {
 	type errorResponse struct {
 		Error string `json:"error"`
@@ -41,6 +43,7 @@ func respondWithErrors(w http.ResponseWriter, statusCode int, msg string) {
 	respondWithPayload(w, statusCode, err)
 }
 
+// helper function for creating json reponse payloads
 func respondWithPayload(w http.ResponseWriter, statusCode int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	dat, err := json.Marshal(payload)
@@ -53,23 +56,20 @@ func respondWithPayload(w http.ResponseWriter, statusCode int, payload interface
 	w.Write(dat)
 }
 
-func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
-	type chirp struct {
-		Body string `json:"body"`
+// API FUNCTIONS
+// api function to handle validation and insertion of a chirp to chirps table
+func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
+	type reqChirp struct {
+		Body    string        `json:"body"`
+		User_Id uuid.NullUUID `json:"user_id"`
 	}
 
 	type cleaned struct {
 		Cleaned string `json:"cleaned_body"`
 	}
 
-	/*
-		type valid struct {
-			Valid bool `json:"valid"`
-		}
-	*/
-
 	decoder := json.NewDecoder(r.Body)
-	chirpToCheck := chirp{}
+	chirpToCheck := reqChirp{}
 
 	err := decoder.Decode(&chirpToCheck)
 	if err != nil {
@@ -87,17 +87,52 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	cleaned_body := censorChirp(chirpToCheck.Body)
 
-	/*
-		val := valid{
-			Valid: true,
-		}
-	*/
-	clean := cleaned{
-		Cleaned: cleaned_body,
+	argChirp := database.CreateChirpParams{
+		Body:   cleaned_body,
+		UserID: chirpToCheck.User_Id,
 	}
-	respondWithPayload(w, 200, clean)
+
+	createdChirp, err := cfg.database.CreateChirp(r.Context(), argChirp)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to create chirp in database")
+		return
+	}
+	payloadChirp := Chirp{
+		ID:        createdChirp.ID,
+		CreatedAt: createdChirp.CreatedAt.Time,
+		UpdatedAt: createdChirp.UpdatedAt.Time,
+		Body:      createdChirp.Body,
+		UserID:    createdChirp.UserID,
+	}
+	respondWithPayload(w, 201, payloadChirp)
 }
 
+// api function to get all chirps
+func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	allChirps, err := cfg.database.GetAllChirps(r.Context())
+	chirpSlice := []Chirp{}
+
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to query database for all chirps")
+		return
+	}
+	for _, chirp := range allChirps {
+		appendChirp := Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt.Time,
+			UpdatedAt: chirp.UpdatedAt.Time,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		}
+
+		chirpSlice = append(chirpSlice, appendChirp)
+	}
+	respondWithPayload(w, 200, chirpSlice)
+}
+
+// api function to handle adding a user to users table
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	type reqEmail struct {
 		Email string `json:"email"`
@@ -128,20 +163,7 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	respondWithPayload(w, 201, jsonUser)
 }
 
-type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
-// API Config Related Handlers at /admin/ endpoints
-type apiConfig struct {
-	fileserverHits atomic.Int32
-	database       *database.Queries
-	platform       string
-}
-
+// api middleware to count page visits
 func (cfg *apiConfig) middlewareMetricsIncrement(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Add(1)
@@ -149,6 +171,7 @@ func (cfg *apiConfig) middlewareMetricsIncrement(next http.Handler) http.Handler
 	})
 }
 
+// api function to return the visit count
 func (cfg *apiConfig) metricHandler(w http.ResponseWriter, r *http.Request) {
 	hitsCount := cfg.fileserverHits.Load()
 	hitsString := fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", hitsCount)
@@ -157,6 +180,7 @@ func (cfg *apiConfig) metricHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(hitsString))
 }
 
+// api function to reset the count of visits and reset the users table
 func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 	if cfg.platform != "dev" {
 		respondWithErrors(w, 403, "Forbidden")

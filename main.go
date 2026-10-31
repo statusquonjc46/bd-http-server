@@ -27,9 +27,11 @@ func main() {
 		os.Exit(1)
 	}
 	//instantiate apiConfig struct to track metrics
-	apiCfg := apiConfig{}
-	apiCfg.database = database.New(db)
-	apiCfg.platform = platform
+	apiCfg := apiConfig{
+		database: database.New(db),
+		platform: platform,
+	}
+
 	//instantiate a new server mux to handle all http requests
 	mux := http.NewServeMux()
 	//instantiate a new http server
@@ -48,11 +50,14 @@ func main() {
 	//handles requests to see the hits to the app, returns "Hits: x"
 	mux.HandleFunc("GET /admin/metrics", apiCfg.metricHandler)
 
+	//handles requests to get all chirps sorted by created-time
+	mux.HandleFunc("GET /api/chirps", apiCfg.getAllChirpsHandler)
+
 	//handles requests to reset the site metrics
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 
 	//handles requests to validate a chirp
-	mux.HandleFunc("POST /api/validate_chirp", validateChirpHandler)
+	mux.HandleFunc("POST /api/chirps", apiCfg.chirpHandler)
 
 	//handles adding users to the users table in the chirpy db
 	mux.HandleFunc("POST /api/users", apiCfg.addUserHandler)
