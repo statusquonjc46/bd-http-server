@@ -7,6 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"sync/atomic"
+	"time"
+	"uuid"
+
+	"github.com/statusquonjc46/bd-http-server/internal/database"
 )
 
 // /api/ endpoint handlers
@@ -69,12 +73,14 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&chirpToCheck)
 	if err != nil {
+		log.Println(err)
 		respondWithErrors(w, 400, "Bad Request")
 		return
 	}
 
 	chirpLen := len(chirpToCheck.Body)
 	if chirpLen > 140 {
+		log.Println(err)
 		respondWithErrors(w, 400, "Chirp is too long")
 		return
 	}
@@ -90,13 +96,50 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 		Cleaned: cleaned_body,
 	}
 	respondWithPayload(w, 200, clean)
-	return
+}
 
+func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
+	type reqEmail struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	emailBody := reqEmail{}
+
+	err := decoder.Decode(&emailBody)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad Request")
+		return
+	}
+
+	user, err := cfg.database.CreateUser(r.Context(), emailBody.Email)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to add user")
+		return
+	}
+	jsonUser := User{
+		ID:        uuid.UUID(user.ID),
+		CreatedAt: user.CreatedAt.Time,
+		UpdatedAt: user.UpdatedAt.Time,
+		Email:     user.Email,
+	}
+	respondWithPayload(w, 201, jsonUser)
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 // API Config Related Handlers at /admin/ endpoints
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	database       *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsIncrement(next http.Handler) http.Handler {
@@ -115,5 +158,14 @@ func (cfg *apiConfig) metricHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		respondWithErrors(w, 403, "Forbidden")
+	}
+	err := cfg.database.DeleteAllUsers(r.Context())
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to reset table")
+		return
+	}
 	cfg.fileserverHits.Store(0)
 }
