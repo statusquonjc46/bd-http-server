@@ -153,6 +153,7 @@ func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request
 	respondWithPayload(w, 200, chirpSlice)
 }
 
+// api function to get a single chirp by chirp id
 func (cfg *apiConfig) getAChirp(w http.ResponseWriter, r *http.Request) {
 	type chirpId struct {
 		ID uuid.UUID
@@ -226,6 +227,69 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}
 	respondWithPayload(w, 201, jsonUser)
+}
+
+func (cfg *apiConfig) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
+	type newCreds struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	reqBody := newCreds{}
+
+	err := decoder.Decode(&reqBody)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad Request")
+		return
+	}
+
+	bearer, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	userId, err := auth.ValidateJWT(bearer, cfg.bearer)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	userData, err := cfg.database.GetUserByID(r.Context(), userId)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "UserId does not exist")
+		return
+	}
+
+	hashed, err := auth.HashPassword(reqBody.Password)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to hash password")
+	}
+
+	userParams := database.UpdateUserCredsParams{
+		Email:          reqBody.Email,
+		HashedPassword: hashed,
+		ID:             userData.ID,
+	}
+
+	dat, err := cfg.database.UpdateUserCreds(r.Context(), userParams)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to update email or password")
+	}
+	payloadUser := User{
+		ID:        dat.ID,
+		CreatedAt: dat.CreatedAt.Time,
+		UpdatedAt: dat.UpdatedAt.Time,
+		Email:     dat.Email,
+	}
+	respondWithPayload(w, 200, payloadUser)
 }
 
 // api function to handle a login attempt via email and password to the users table
