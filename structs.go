@@ -25,6 +25,15 @@ type UserWithHash struct {
 	HashedPassword string    `json:"password"`
 }
 
+// user table with token entry
+type UserWithToken struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+	Token     string    `json:"token"`
+}
+
 // chirp table entry
 type Chirp struct {
 	ID        uuid.UUID     `json:"id"`
@@ -39,4 +48,5 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	database       *database.Queries
 	platform       string
+	bearer         string
 }

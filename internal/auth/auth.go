@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"errors"
 	"log"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -71,4 +74,14 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 		log.Println(err)
 		return uuid.Nil, err
 	}
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		return "", errors.New("Bearer token not present")
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	return token, nil
 }

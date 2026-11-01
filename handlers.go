@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	//"uuid"
 
@@ -79,6 +80,25 @@ func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bearer, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request - Token")
+		return
+	}
+
+	jwtUserId, err := auth.ValidateJWT(bearer, cfg.bearer)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	validUUID := uuid.NullUUID{
+		UUID:  jwtUserId,
+		Valid: true,
+	}
+
 	chirpLen := len(chirpToCheck.Body)
 	if chirpLen > 140 {
 		log.Println(err)
@@ -90,7 +110,7 @@ func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	argChirp := database.CreateChirpParams{
 		Body:   cleaned_body,
-		UserID: chirpToCheck.User_Id,
+		UserID: validUUID,
 	}
 
 	createdChirp, err := cfg.database.CreateChirp(r.Context(), argChirp)
@@ -211,8 +231,9 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 // api function to handle a login attempt via email and password to the users table
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	type creds struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
+		Expiration int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -223,6 +244,10 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		respondWithErrors(w, 400, "Bad request")
 		return
+	}
+
+	if credBody.Expiration <= 0 || credBody.Expiration > 3600 {
+		credBody.Expiration = 3600
 	}
 
 	user, err := cfg.database.ValidateEmail(r.Context(), credBody.Email)
@@ -243,12 +268,22 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payloadUser := User{
+	payloadUser := UserWithToken{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt.Time,
 		UpdatedAt: user.UpdatedAt.Time,
 		Email:     user.Email,
 	}
+
+	userToken, err := auth.MakeJWT(payloadUser.ID, cfg.bearer, time.Duration(credBody.Expiration)*time.Second)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to create token")
+		return
+	}
+
+	payloadUser.Token = userToken
+
 	respondWithPayload(w, 200, payloadUser)
 }
 
