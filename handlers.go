@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -281,10 +282,11 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonUser := User{
-		ID:        uuid.UUID(user.ID),
-		CreatedAt: user.CreatedAt.Time,
-		UpdatedAt: user.UpdatedAt.Time,
-		Email:     user.Email,
+		ID:          uuid.UUID(user.ID),
+		CreatedAt:   user.CreatedAt.Time,
+		UpdatedAt:   user.UpdatedAt.Time,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed.Bool,
 	}
 	respondWithPayload(w, 201, jsonUser)
 }
@@ -345,10 +347,11 @@ func (cfg *apiConfig) updateProfileHandler(w http.ResponseWriter, r *http.Reques
 		respondWithErrors(w, 500, "Failed to update email or password")
 	}
 	payloadUser := User{
-		ID:        dat.ID,
-		CreatedAt: dat.CreatedAt.Time,
-		UpdatedAt: dat.UpdatedAt.Time,
-		Email:     dat.Email,
+		ID:          dat.ID,
+		CreatedAt:   dat.CreatedAt.Time,
+		UpdatedAt:   dat.UpdatedAt.Time,
+		Email:       dat.Email,
+		IsChirpyRed: dat.IsChirpyRed.Bool,
 	}
 	respondWithPayload(w, 200, payloadUser)
 }
@@ -389,10 +392,11 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payloadUser := UserWithToken{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt.Time,
-		UpdatedAt: user.UpdatedAt.Time,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt.Time,
+		UpdatedAt:   user.UpdatedAt.Time,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed.Bool,
 	}
 
 	userToken, err := auth.MakeJWT(payloadUser.ID, cfg.bearer, accessExpiresAt)
@@ -499,4 +503,48 @@ func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cfg.fileserverHits.Store(0)
+}
+
+// api function to update a user to chirpy red
+func (cfg *apiConfig) updateChirpyRed(w http.ResponseWriter, r *http.Request) {
+	type eventUpdate struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserId uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	eventBody := eventUpdate{}
+
+	err := decoder.Decode(&eventBody)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request")
+		return
+	}
+
+	if eventBody.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	}
+
+	redParams := database.UpdateChirpyRedParams{
+		IsChirpyRed: sql.NullBool{Bool: true, Valid: true},
+		ID:          eventBody.Data.UserId,
+	}
+	userData, err := cfg.database.UpdateChirpyRed(r.Context(), redParams)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 404, "User not found")
+		return
+	}
+
+	if userData.IsChirpyRed.Bool == false {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to update chirpy status")
+		return
+	}
+
+	w.WriteHeader(204)
 }

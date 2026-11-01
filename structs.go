@@ -12,10 +12,11 @@ const accessExpiresAt = time.Duration(3600) * time.Second
 
 // user table entry
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 // user table with password hash entry
@@ -29,12 +30,13 @@ type UserWithHash struct {
 
 // user table with token entry
 type UserWithToken struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
-	Refresh   string    `json:"refresh_token"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	Token       string    `json:"token"`
+	Refresh     string    `json:"refresh_token"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 // chirp table entry

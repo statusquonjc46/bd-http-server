@@ -82,6 +82,9 @@ func main() {
 	//handles updating authenticated users email and password
 	mux.HandleFunc("PUT /api/users", apiCfg.updateProfileHandler)
 
+	//handles upgrading a user to chirpy red
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.updateChirpyRed)
+
 	//listen and serve sets up the interface to take requests and return responses based on the handlers above
 	if err := httpServer.ListenAndServe(); err != nil {
 		fmt.Println(fmt.Errorf("Error: failed to start server [%v]", err))
