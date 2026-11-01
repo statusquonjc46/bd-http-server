@@ -21,6 +21,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
 	bearer := os.Getenv("BEAR_SECRET")
+	polka_key := os.Getenv("POLKA_KEY")
 	//Open connection to psql db
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -32,6 +33,7 @@ func main() {
 		database: database.New(db),
 		platform: platform,
 		bearer:   bearer,
+		polka:    polka_key,
 	}
 
 	//instantiate a new server mux to handle all http requests

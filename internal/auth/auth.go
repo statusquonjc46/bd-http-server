@@ -93,3 +93,13 @@ func MakeRefreshToken() string {
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
 }
+
+func GetApiKey(headers http.Header) (string, error) {
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "ApiKey ") {
+		return "", errors.New("Bearer token not present")
+	}
+
+	token := strings.TrimPrefix(authHeader, "ApiKey ")
+	return token, nil
+}

@@ -54,4 +54,5 @@ type apiConfig struct {
 	database       *database.Queries
 	platform       string
 	bearer         string
+	polka          string
 }

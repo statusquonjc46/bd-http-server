@@ -132,14 +132,33 @@ func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 
 // api function to get all chirps
 func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request) {
-	allChirps, err := cfg.database.GetAllChirps(r.Context())
 	chirpSlice := []Chirp{}
-
+	authId := r.URL.Query().Get("author_id")
+	authUUID, err := uuid.Parse(authId)
 	if err != nil {
 		log.Println(err)
-		respondWithErrors(w, 500, "Failed to query database for all chirps")
-		return
+		respondWithErrors(w, 400, "Bad request - author id")
 	}
+	var allChirps []database.Chirp
+
+	if authId == "" {
+		returnedChirps, err := cfg.database.GetAllChirps(r.Context())
+		if err != nil {
+			log.Println(err)
+			respondWithErrors(w, 500, "Failed to query database for all chirps")
+			return
+		}
+		allChirps = returnedChirps
+	} else {
+		returnedChirps, err := cfg.database.GetAllChirpsByAuthor(r.Context(), uuid.NullUUID{UUID: authUUID, Valid: true})
+		if err != nil {
+			log.Println(err)
+			respondWithErrors(w, 404, "Author ID not present")
+			return
+		}
+		allChirps = returnedChirps
+	}
+
 	for _, chirp := range allChirps {
 		appendChirp := Chirp{
 			ID:        chirp.ID,
@@ -521,6 +540,18 @@ func (cfg *apiConfig) updateChirpyRed(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println(err)
 		respondWithErrors(w, 400, "Bad request")
+		return
+	}
+
+	apiKey, err := auth.GetApiKey(r.Header)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	if apiKey != cfg.polka {
+		respondWithErrors(w, 401, "Unauthorized")
 		return
 	}
 
