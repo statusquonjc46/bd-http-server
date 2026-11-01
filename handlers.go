@@ -231,9 +231,8 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 // api function to handle a login attempt via email and password to the users table
 func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	type creds struct {
-		Email      string `json:"email"`
-		Password   string `json:"password"`
-		Expiration int    `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -244,10 +243,6 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		respondWithErrors(w, 400, "Bad request")
 		return
-	}
-
-	if credBody.Expiration <= 0 || credBody.Expiration > 3600 {
-		credBody.Expiration = 3600
 	}
 
 	user, err := cfg.database.ValidateEmail(r.Context(), credBody.Email)
@@ -275,16 +270,79 @@ func (cfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 	}
 
-	userToken, err := auth.MakeJWT(payloadUser.ID, cfg.bearer, time.Duration(credBody.Expiration)*time.Second)
+	userToken, err := auth.MakeJWT(payloadUser.ID, cfg.bearer, accessExpiresAt)
 	if err != nil {
 		log.Println(err)
 		respondWithErrors(w, 500, "Failed to create token")
 		return
 	}
 
+	refreshParams := database.InsertTokenParams{
+		Token:  auth.MakeRefreshToken(),
+		UserID: uuid.NullUUID{UUID: payloadUser.ID, Valid: true},
+	}
+	refreshToken, err := cfg.database.InsertToken(r.Context(), refreshParams)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to create refresh token")
+		return
+	}
+
 	payloadUser.Token = userToken
+	payloadUser.Refresh = refreshToken.Token
 
 	respondWithPayload(w, 200, payloadUser)
+}
+
+// api function to refresh a access token if refresh token is valid
+func (cfg *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
+	type accessToken struct {
+		Token string `json:"token"`
+	}
+	bearer, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request - bearer")
+		return
+	}
+	tokenData, err := cfg.database.ValidateRefreshToken(r.Context(), bearer)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	if tokenData.ExpiresAt.Time.Before(time.Now()) || tokenData.RevokedAt.Valid {
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+	newToken, err := auth.MakeJWT(tokenData.UserID.UUID, cfg.bearer, accessExpiresAt)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to create new access token from bearer")
+	}
+
+	payloadToken := accessToken{
+		Token: newToken,
+	}
+	respondWithPayload(w, 200, payloadToken)
+
+}
+
+// api function to revoke the refresh token
+func (cfg *apiConfig) revokeRefreshHandler(w http.ResponseWriter, r *http.Request) {
+	bearer, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request - bearer")
+		return
+	}
+	err = cfg.database.RevokeRefreshToken(r.Context(), bearer)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+	}
+	w.WriteHeader(204)
 }
 
 // api middleware to count page visits

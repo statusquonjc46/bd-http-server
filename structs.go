@@ -8,6 +8,8 @@ import (
 	"github.com/statusquonjc46/bd-http-server/internal/database"
 )
 
+const accessExpiresAt = time.Duration(3600) * time.Second
+
 // user table entry
 type User struct {
 	ID        uuid.UUID `json:"id"`
@@ -32,6 +34,7 @@ type UserWithToken struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
 	Token     string    `json:"token"`
+	Refresh   string    `json:"refresh_token"`
 }
 
 // chirp table entry

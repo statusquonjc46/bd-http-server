@@ -70,6 +70,12 @@ func main() {
 	//handles login requests
 	mux.HandleFunc("POST /api/login", apiCfg.loginHandler)
 
+	//handles refresh tokens
+	mux.HandleFunc("POST /api/refresh", apiCfg.refreshHandler)
+
+	//handles revoking the refresh token
+	mux.HandleFunc("POST /api/revoke", apiCfg.revokeRefreshHandler)
+
 	//listen and serve sets up the interface to take requests and return responses based on the handlers above
 	if err := httpServer.ListenAndServe(); err != nil {
 		fmt.Println(fmt.Errorf("Error: failed to start server [%v]", err))
