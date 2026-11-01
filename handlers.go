@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -134,11 +135,7 @@ func (cfg *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	chirpSlice := []Chirp{}
 	authId := r.URL.Query().Get("author_id")
-	authUUID, err := uuid.Parse(authId)
-	if err != nil {
-		log.Println(err)
-		respondWithErrors(w, 400, "Bad request - author id")
-	}
+	sorting := r.URL.Query().Get("sort")
 	var allChirps []database.Chirp
 
 	if authId == "" {
@@ -150,6 +147,11 @@ func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request
 		}
 		allChirps = returnedChirps
 	} else {
+		authUUID, err := uuid.Parse(authId)
+		if err != nil {
+			log.Println(err)
+			respondWithErrors(w, 400, "Bad request - author id")
+		}
 		returnedChirps, err := cfg.database.GetAllChirpsByAuthor(r.Context(), uuid.NullUUID{UUID: authUUID, Valid: true})
 		if err != nil {
 			log.Println(err)
@@ -170,10 +172,15 @@ func (cfg *apiConfig) getAllChirpsHandler(w http.ResponseWriter, r *http.Request
 
 		chirpSlice = append(chirpSlice, appendChirp)
 	}
+	if sorting == "desc" {
+		slices.SortFunc(chirpSlice, func(a, b Chirp) int {
+			return b.CreatedAt.Compare(a.CreatedAt)
+		})
+	}
 	respondWithPayload(w, 200, chirpSlice)
 }
 
-// api function to get a single chirp by chirp id
+// api function to get a single postgres delete row from tablechirp by chirp id
 func (cfg *apiConfig) getAChirp(w http.ResponseWriter, r *http.Request) {
 	type chirpId struct {
 		ID uuid.UUID
