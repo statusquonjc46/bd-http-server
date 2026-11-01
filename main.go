@@ -58,6 +58,9 @@ func main() {
 	//handles getting a chirp by chirp id
 	mux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.getAChirp)
 
+	//handles deleting a chirp if authenticated user
+	mux.HandleFunc("DELETE /api/chirps/{chirpId}", apiCfg.deleteChirp)
+
 	//handles requests to reset the site metrics
 	mux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 

@@ -185,6 +185,66 @@ func (cfg *apiConfig) getAChirp(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// api function to delete a chirp is authenticated as the authoer
+func (cfg *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
+	type chirp struct {
+		ChirpID uuid.UUID `json:"id"`
+		UserID  uuid.NullUUID
+	}
+
+	pathVal := r.PathValue("chirpId")
+	parsedVal, err := uuid.Parse(pathVal)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 400, "Bad request")
+		return
+	}
+
+	bearer, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	userId, err := auth.ValidateJWT(bearer, cfg.bearer)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 401, "Unauthorized")
+		return
+	}
+
+	delParams := database.DeleteAChirpParams{
+		ID: parsedVal,
+		UserID: uuid.NullUUID{
+			UUID:  userId,
+			Valid: true,
+		},
+	}
+
+	returnedChirp, err := cfg.database.GetAChirp(r.Context(), delParams.ID)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 404, "Chirp not found")
+		return
+	}
+
+	if returnedChirp.ID != parsedVal || returnedChirp.UserID.UUID != userId {
+		log.Println(err)
+		respondWithErrors(w, 403, "Forbidden")
+		return
+	}
+
+	err = cfg.database.DeleteAChirp(r.Context(), delParams)
+	if err != nil {
+		log.Println(err)
+		respondWithErrors(w, 500, "Failed to delete chirp")
+		return
+	}
+
+	w.WriteHeader(204)
+}
+
 // api function to handle adding a user to users table
 func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	type reqEmail struct {
@@ -229,6 +289,7 @@ func (cfg *apiConfig) addUserHandler(w http.ResponseWriter, r *http.Request) {
 	respondWithPayload(w, 201, jsonUser)
 }
 
+// api function to update a user email and password if authenticated
 func (cfg *apiConfig) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	type newCreds struct {
 		Email    string `json:"email"`
